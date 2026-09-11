@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GeoBlock BBGTK DIY - 3D Visual Block Coding</title>
+  
+  <!-- Blockly CDN Core & Generators -->
+  <script src="https://unpkg.com/blockly/blockly_compressed.js"></script>
+  <script src="https://unpkg.com/blockly/blocks_compressed.js"></script>
+  <script src="https://unpkg.com/blockly/javascript_compressed.js"></script>
+  <script src="https://unpkg.com/blockly/msg/id.js"></script>
+
+  <!-- Three.js CDN & Font Extensions -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/TextGeometry.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    #app-header { height: 50px; background-color: #1e1e2f; color: #ffffff; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-logo { height: 32px; width: auto; object-fit: contain; }
+    #app-header h1 { font-size: 1.2rem; font-weight: 600; letter-spacing: 0.5px; }
+    #btn-render { background-color: #28a745; color: white; border: none; padding: 8px 18px; font-size: 0.95rem; font-weight: bold; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
+    #btn-render:hover { background-color: #218838; }
+    #main-container { display: flex; width: 100vw; height: calc(100vh - 50px); }
+    #blockly-div { width: 55%; height: 100%; }
+    #viewport-container { width: 45%; height: 100%; position: relative; background-color: #141419; }
+    #canvas3d { width: 100%; height: 100%; display: block; }
+    #code-preview { position: absolute; bottom: 10px; left: 10px; right: 10px; height: 120px; background: rgba(0, 0, 0, 0.75); color: #00ff66; font-family: 'Courier New', Courier, monospace; font-size: 12px; padding: 10px; border-radius: 6px; overflow-y: auto; pointer-events: none; border: 1px solid rgba(255,255,255,0.1); }
+  </style>
+</head>
+<body>
+
+  <header id="app-header">
+    <div class="header-left">
+      <img src="bbgtk diy logo.png" alt="Logo BBGTK DIY" class="header-logo">
+      <h1>GeoBlock BBGTK DIY</h1>
+    </div>
+    <button id="btn-render" onclick="renderScene()">Render 3D Kode</button>
+  </header>
+
+  <main id="main-container">
+    <div id="blockly-div"></div>
+    <div id="viewport-container">
+      <canvas id="canvas3d"></canvas>
+      <pre id="code-preview">// Kode JavaScript tergenerasi akan muncul di sini...</pre>
+    </div>
+  </main>
+
+  <!-- Modul Custom Blocks 3D JS -->
+  <script src="block_cube.js"></script>
+  <script src="block_sphere.js"></script>
+  <script src="block_cylinder.js"></script>
+  <script src="block_torus.js"></script>
+
+  <!-- Modul Custom Blocks 2D JS -->
+  <script src="block_circle.js"></script>
+  <script src="block_square.js"></script>
+
+  <!-- Modul Custom Blocks Transformasi JS -->
+  <script src="block_color.js"></script>
+  <script src="block_translate.js"></script>
+  <script src="block_rotate.js"></script>
+  <script src="block_scale.js"></script>
+  <script src="block_mirror.js"></script>
+
+  <!-- Modul Custom Blocks Operasi Himpunan JS -->
+  <script src="block_union.js"></script>
+  <script src="block_intersection.js"></script>
+  <script src="block_difference.js"></script>
+  <script src="block_hull.js"></script>
+
+  <!-- Modul Custom Blocks Teks JS -->
+  <script src="block_text.js"></script>
+
+  <script>
+    const jsGen = javascript.javascriptGenerator || javascriptGenerator;
+
+    if (Blockly.Msg) {
+      Blockly.Msg["MATH_MODULO_TITLE"] = "modulo %1 ÷ %2";
+      Blockly.Msg["LOGIC_BOOLEAN_TRUE"] = "benar";
+      Blockly.Msg["LOGIC_BOOLEAN_FALSE"] = "salah";
+      
+      // REVISI NAMA 1: Mengubah "buat teks dengan" menjadi "gabung teks"
+      Blockly.Msg["TEXT_JOIN_TITLE_CREATEWITH"] = "gabung teks";
+    }
+
+    // Pre-load Font Asli Three.js
+    window.loadedFonts = {};
+    const fontLoader = new THREE.FontLoader();
+    const fontUrls = {
+      helvetiker: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/fonts/helvetiker_regular.typeface.json',
+      optimer: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/fonts/optimer_regular.typeface.json',
+      gentilis: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/fonts/gentilis_regular.typeface.json'
+    };
+
+    Object.keys(fontUrls).forEach(key => {
+      fontLoader.load(fontUrls[key], function(font) {
+        window.loadedFonts[key] = font;
+      });
+    });
+
+    Blockly.Blocks['math_custom_angle'] = {
+      init: function() {
+        this.appendDummyInput()
+            .appendField("derajat")
+            .appendField(new Blockly.FieldNumber(90, -360, 360), "DEGREE")
+            .appendField("°");
+        this.setOutput(true, "Number");
+        this.setColour("#5B80A5");
+        this.setTooltip("Blok input tunggal untuk nilai derajat/sudut (-360° sampai 360°)");
+      }
+    };
+
+    jsGen.forBlock['math_custom_angle'] = function(block) {
+      var degree = block.getFieldValue('DEGREE') || 0;
+      return [degree, jsGen.ORDER_ATOMIC];
+    };
+
+    const toolboxXml = `
+      <xml id="toolbox" style="display: none">
+        <!-- 1. Bentuk 3D -->
+        <category name="Bentuk 3D" colour="#4C97FF">
+          <block type="shape_cube">
+            <value name="SIZE_X"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="SIZE_Y"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="SIZE_Z"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="POS_X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+
+          <block type="shape_sphere">
+            <value name="RADIUS"><shadow type="math_number"><field name="NUM">5</field></shadow></value>
+            <value name="POS_X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+
+          <block type="shape_cylinder">
+            <value name="RADIUS_TOP"><shadow type="math_number"><field name="NUM">5</field></shadow></value>
+            <value name="RADIUS_BOTTOM"><shadow type="math_number"><field name="NUM">5</field></shadow></value>
+            <value name="HEIGHT"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="POS_X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+
+          <block type="shape_torus">
+            <value name="RADIUS"><shadow type="math_number"><field name="NUM">8</field></shadow></value>
+            <value name="TUBE"><shadow type="math_number"><field name="NUM">3</field></shadow></value>
+            <value name="POS_X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+        </category>
+
+        <!-- 2. Bentuk 2D -->
+        <category name="Bentuk 2D" colour="#9C27B0">
+          <block type="shape_circle">
+            <value name="RADIUS"><shadow type="math_number"><field name="NUM">5</field></shadow></value>
+            <value name="POS_X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+
+          <block type="shape_square">
+            <value name="SIZE_X"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="SIZE_Y"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="POS_X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+        </category>
+
+        <!-- 3. Transformasi -->
+        <category name="Transformasi" colour="#FF9800">
+          <block type="transform_color_palette">
+            <value name="OPACITY">
+              <shadow type="math_number"><field name="NUM">0</field></shadow>
+            </value>
+          </block>
+
+          <block type="transform_translate">
+            <value name="X"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+
+          <block type="transform_rotate">
+            <value name="X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="Z"><shadow type="math_number"><field name="NUM">45</field></shadow></value>
+          </block>
+
+          <block type="transform_rotate_around_point">
+            <value name="ANGLE"><shadow type="math_number"><field name="NUM">45</field></shadow></value>
+            <value name="POS_X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+
+          <block type="transform_scale">
+            <value name="X"><shadow type="math_number"><field name="NUM">2</field></shadow></value>
+            <value name="Y"><shadow type="math_number"><field name="NUM">2</field></shadow></value>
+            <value name="Z"><shadow type="math_number"><field name="NUM">2</field></shadow></value>
+          </block>
+
+          <block type="transform_mirror_plane"></block>
+
+          <block type="transform_mirror_line">
+            <value name="X1"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="Y1"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="Z1"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="X2"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="Y2"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="Z2"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+        </category>
+
+        <!-- 4. Operasi Himpunan -->
+        <category name="Operasi Himpunan" colour="#E91E63">
+          <block type="csg_union"></block>
+          <block type="csg_intersection"></block>
+          <block type="csg_difference"></block>
+          <block type="csg_hull"></block>
+        </category>
+
+        <!-- 5. Matematika -->
+        <category name="Matematika" colour="#5B80A5">
+          <block type="math_number"><field name="NUM">10</field></block>
+          <block type="math_custom_angle"></block>
+
+          <block type="math_arithmetic">
+            <value name="A"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+            <value name="B"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+          </block>
+
+          <block type="math_trig">
+            <value name="NUM"><shadow type="math_custom_angle"></shadow></value>
+          </block>
+
+          <block type="math_constant"></block>
+
+          <block type="math_round">
+            <value name="NUM"><shadow type="math_number"><field name="NUM">3.14</field></shadow></value>
+          </block>
+
+          <block type="math_modulo">
+            <value name="DIVIDEND"><shadow type="math_number"><field name="NUM">64</field></shadow></value>
+            <value name="DIVISOR"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+          </block>
+
+          <block type="math_random_int">
+            <value name="FROM"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+            <value name="TO"><shadow type="math_number"><field name="NUM">100</field></shadow></value>
+          </block>
+
+          <block type="math_random_float"></block>
+        </category>
+
+        <!-- 6. Logika -->
+        <category name="Logika" colour="#5C81A6">
+          <block type="controls_if"></block>
+          <block type="logic_compare">
+            <value name="A"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+            <value name="B"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+          </block>
+
+          <block type="logic_operation"></block>
+          <block type="logic_negate"></block>
+          <block type="logic_boolean"></block>
+          <block type="logic_ternary"></block>
+        </category>
+
+        <!-- 7. Iterasi -->
+        <category name="Iterasi" colour="#5CA65C">
+          <block type="controls_repeat_ext">
+            <value name="TIMES"><block type="math_number"><field name="NUM">10</field></block></value>
+          </block>
+          <block type="controls_for">
+            <value name="FROM"><block type="math_number"><field name="NUM">1</field></block></value>
+            <value name="TO"><block type="math_number"><field name="NUM">10</field></block></value>
+            <value name="BY"><block type="math_number"><field name="NUM">1</field></block></value>
+          </block>
+        </category>
+
+        <!-- 8. Variabel & Teks -->
+        <category name="Variabel" colour="#A55B80" custom="VARIABLE"></category>
+        
+        <category name="Teks" colour="#5BA58C">
+          <!-- REVISI NAMA 2: Blok Teks 3D Format Vertikal Rapi -->
+          <block type="shape_text_3d">
+            <value name="TEXT">
+              <shadow type="text"><field name="TEXT">BBGTK DIY</field></shadow>
+            </value>
+            <value name="SIZE">
+              <shadow type="math_number"><field name="NUM">10</field></shadow>
+            </value>
+            <value name="HEIGHT">
+              <shadow type="math_number"><field name="NUM">2</field></shadow>
+            </value>
+          </block>
+
+          <!-- Blok Teks 2D -->
+          <block type="shape_text_2d">
+            <value name="TEXT">
+              <shadow type="text"><field name="TEXT">GeoBlock</field></shadow>
+            </value>
+            <value name="SIZE">
+              <shadow type="math_number"><field name="NUM">10</field></shadow>
+            </value>
+          </block>
+
+          <!-- Blok String Teks Biasa -->
+          <block type="text"></block>
+
+          <!-- Blok Penggabung String (Gabung Teks) -->
+          <block type="text_join"></block>
+        </category>
+      </xml>
+    `;
+
+    const workspace = Blockly.inject('blockly-div', {
+      toolbox: toolboxXml,
+      scrollbars: true,
+      zoom: { controls: true, wheel: true, startScale: 1.0, maxScale: 3, minScale: 0.3, scaleSpeed: 1.2 },
+      grid: { spacing: 20, length: 3, colour: '#ccc', snap: true }
+    });
+
+    const canvas = document.getElementById('canvas3d');
+    const container = document.getElementById('viewport-container');
+    
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1e1e24);
+
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.up.set(0, 0, 1);
+    camera.position.set(40, -50, 30);
+
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0, 0);
+    controls.enableDamping = true;
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(30, -30, 50);
+    scene.add(dirLight);
+
+    const gridHelper = new THREE.GridHelper(100, 50, 0x00ffcc, 0x444455);
+    gridHelper.rotation.x = Math.PI / 2;
+    scene.add(gridHelper);
+
+    const axesHelper = new THREE.AxesHelper(30);
+    scene.add(axesHelper);
+
+    const renderGroup = new THREE.Group();
+    scene.add(renderGroup);
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    });
+
+    function renderScene() {
+      while(renderGroup.children.length > 0){ 
+        const obj = renderGroup.children[0];
+        if (obj.geometry) obj.geometry.dispose();
+        renderGroup.remove(obj); 
+      }
+
+      const code = jsGen.workspaceToCode(workspace);
+      document.getElementById('code-preview').innerText = code || "// Workspace kosong";
+
+      try {
+        const runCode = new Function('sceneGroup', 'THREE', code);
+        runCode(renderGroup, THREE);
+      } catch (e) {
+        console.error("Error eksekusi rendering 3D:", e);
+      }
+    }
+  </script>
+</body>
+</html>
