@@ -2,34 +2,37 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GeoBlock BBGTK DIY - 3D Physics & Mechanics Laboratory</title>
   
-  <!-- 1. Google Blockly CDN -->
+  <!-- 1. BLOCKLY CORE & LANGUAGE PACKS -->
   <script src="https://unpkg.com/blockly/blockly_compressed.js"></script>
   <script src="https://unpkg.com/blockly/blocks_compressed.js"></script>
   <script src="https://unpkg.com/blockly/javascript_compressed.js"></script>
   <script src="https://unpkg.com/blockly/msg/id.js"></script>
 
-  <!-- 2. Three.js & Cannon.js (3D & Physics) -->
+  <!-- 2. THREE.JS & CANNON.JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
 
   <style>
-    body { margin: 0; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; }
-    header { background: #1e293b; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
-    main { display: flex; flex: 1; overflow: hidden; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; height: 100vh; display: flex; flex-direction: column; background-color: #0f172a; color: white; }
+    header { background: #1e293b; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #334155; }
+    header h1 { font-size: 1.1rem; color: #38bdf8; display: flex; align-items: center; gap: 10px; }
+    main { display: flex; flex: 1; height: calc(100vh - 55px); }
     #blocklyDiv { width: 50%; height: 100%; }
-    #renderContainer { width: 50%; height: 100%; position: relative; background: #000; }
+    #renderContainer { width: 50%; height: 100%; position: relative; background: #020617; border-left: 2px solid #334155; }
     #canvas3d { width: 100%; height: 100%; display: block; }
-    #btnRun { background: #22c55e; color: white; border: none; padding: 8px 16px; cursor: pointer; font-weight: bold; border-radius: 4px; }
-    #btnRun:hover { background: #16a34a; }
+    .btn-run { background: #22c55e; color: white; border: none; padding: 8px 18px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; }
+    .btn-run:hover { background: #16a34a; }
   </style>
 </head>
 <body>
 
   <header>
-    <h1>GeoBlock 3D Laboratory</h1>
-    <button id="btnRun" onclick="runCode()">▶ Jalankan Simulasi</button>
+    <h1>GeoBlock BBGTK DIY - 3D Laboratory</h1>
+    <button class="btn-run" onclick="runCode()">▶ Jalankan Kode</button>
   </header>
 
   <main>
@@ -39,71 +42,167 @@
     </div>
   </main>
 
-  <!-- XML TOOLBOX (Menyediakan fitur Variabel & Blok 3D) -->
+  <!-- TOOLBOX GEOCLASSROOM DEFINITION -->
   <xml id="toolbox" style="display: none">
-    <!-- KATEGORI VARIABEL BAWAAN BLOCKLY -->
+    <!-- 1. KATEGORI VARIABEL -->
     <category name="Variabel" custom="VARIABLE" colour="%{BKY_VARIABLES_HUE}"></category>
+
+    <!-- 2. KATEGORI ITERASI / LOOP -->
+    <category name="Iterasi" colour="%{BKY_LOOPS_HUE}">
+      <block type="controls_repeat_ext">
+        <value name="TIMES">
+          <shadow type="math_number">
+            <field name="NUM">5</field>
+          </shadow>
+        </value>
+      </block>
+      <block type="controls_whileUntil"></block>
+      <block type="controls_for">
+        <value name="FROM">
+          <shadow type="math_number">
+            <field name="NUM">1</field>
+          </shadow>
+        </value>
+        <value name="TO">
+          <shadow type="math_number">
+            <field name="NUM">10</field>
+          </shadow>
+        </value>
+        <value name="BY">
+          <shadow type="math_number">
+            <field name="NUM">1</field>
+          </shadow>
+        </value>
+      </block>
+    </category>
+
+    <!-- 3. MATEMATIKA & LOGIKA -->
     <category name="Matematika" colour="%{BKY_MATH_HUE}">
       <block type="math_number"></block>
       <block type="math_arithmetic"></block>
     </category>
+    
     <category name="Logika" colour="%{BKY_LOGIC_HUE}">
       <block type="controls_if"></block>
       <block type="logic_compare"></block>
     </category>
+
     <sep></sep>
-    <category name="Obyek 3D" colour="210">
+    
+    <!-- 4. BLOK BENTUK 3D CUSTOM -->
+    <category name="Bentuk 3D" colour="210">
       <block type="buat_kubus"></block>
       <block type="buat_bola"></block>
     </category>
   </xml>
 
   <script>
-    // ==========================================
-    // 1. INISIALISASI THREE.JS & CANNON.JS
-    // ==========================================
+    // ===================================================
+    // 1. SETUP THREE.JS (VISUAL 3D) & CANNON.JS (FISIKA)
+    // ===================================================
     const canvas = document.getElementById('canvas3d');
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
     renderer.setSize(canvas.clientWidth, canvas.clientHeight);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1a1a2e);
+    scene.background = new THREE.Color(0x0f172a);
 
     const camera = new THREE.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
-    camera.position.set(0, 8, 15);
+    camera.position.set(0, 10, 20);
     camera.lookAt(0, 0, 0);
 
-    // PENCAHAYAAN (Agar obyek tampak terang & jelas)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    // Pencahayaan Utama
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
     dirLight.position.set(10, 20, 10);
     scene.add(dirLight);
 
-    // Grid Helper & Lantai Fisika
-    const gridHelper = new THREE.GridHelper(20, 20, 0x4fc3f7, 0x444444);
+    // Grid Lantai
+    const gridHelper = new THREE.GridHelper(20, 20, 0x38bdf8, 0x334155);
     scene.add(gridHelper);
 
+    // World Fisika
     const world = new CANNON.World();
-    world.gravity.set(0, -9.82, 0);
+    world.gravity.set(0, -9.81, 0);
 
-    const objectsToUpdate = [];
+    const activeObjects = [];
 
-    // ==========================================
-    // 2. DEFINISI BLOK CUSTOM BLOCKLY & GENERATOR
-    // ==========================================
-    
-    // Blok Kubus
+    // FUNGSI MEMBUAT OBYEK (GLOBAL SCOPE)
+    window.tambahKubus = function(x, y, z, colorHex) {
+      const size = 1;
+      const geometry = new THREE.BoxGeometry(size, size, size);
+      const material = new THREE.MeshStandardMaterial({ color: Number(colorHex), roughness: 0.3 });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(x, y, z);
+      scene.add(mesh);
+
+      const shape = new CANNON.Box(new CANNON.Vec3(size/2, size/2, size/2));
+      const body = new CANNON.Body({ mass: 1, shape: shape });
+      body.position.set(x, y, z);
+      world.addBody(body);
+
+      activeObjects.push({ mesh, body });
+    };
+
+    window.tambahBola = function(x, y, z, colorHex) {
+      const radius = 0.6;
+      const geometry = new THREE.SphereGeometry(radius, 32, 32);
+      const material = new THREE.MeshStandardMaterial({ color: Number(colorHex), roughness: 0.2 });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(x, y, z);
+      scene.add(mesh);
+
+      const shape = new CANNON.Sphere(radius);
+      const body = new CANNON.Body({ mass: 1, shape: shape });
+      body.position.set(x, y, z);
+      world.addBody(body);
+
+      activeObjects.push({ mesh, body });
+    };
+
+    function clearScene() {
+      for (let obj of activeObjects) {
+        scene.remove(obj.mesh);
+        world.remove(obj.body);
+      }
+      activeObjects.length = 0;
+    }
+
+    // Loop Animasi
+    const clock = new THREE.Clock();
+    let prevTime = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const time = clock.getElapsedTime();
+      const dt = time - prevTime;
+      prevTime = time;
+
+      world.step(1 / 60, dt, 3);
+
+      for (let obj of activeObjects) {
+        obj.mesh.position.copy(obj.body.position);
+        obj.mesh.quaternion.copy(obj.body.quaternion);
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // ===================================================
+    // 2. DEFINISI BLOK CUSTOM & GENERATOR JAVASCRIPT
+    // ===================================================
     Blockly.Blocks['buat_kubus'] = {
       init: function() {
         this.appendDummyInput()
             .appendField("Buat Kubus Warna")
-            .appendField(new Blockly.FieldColour("#ff0000"), "WARNA")
-            .appendField("di X:")
+            .appendField(new Blockly.FieldColour("#ef4444"), "WARNA")
+            .appendField("Posisi X:")
             .appendField(new Blockly.FieldNumber(0), "X")
             .appendField("Y:")
-            .appendField(new Blockly.FieldNumber(3), "Y")
+            .appendField(new Blockly.FieldNumber(4), "Y")
             .appendField("Z:")
             .appendField(new Blockly.FieldNumber(0), "Z");
         this.setPreviousStatement(true, null);
@@ -117,19 +216,18 @@
       const x = block.getFieldValue('X');
       const y = block.getFieldValue('Y');
       const z = block.getFieldValue('Z');
-      return `tambahKubus(${x}, ${y}, ${z}, ${color});\n`;
+      return `window.tambahKubus(${x}, ${y}, ${z}, '${color}');\n`;
     };
 
-    // Blok Bola
     Blockly.Blocks['buat_bola'] = {
       init: function() {
         this.appendDummyInput()
             .appendField("Buat Bola Warna")
-            .appendField(new Blockly.FieldColour("#00ff00"), "WARNA")
-            .appendField("di X:")
+            .appendField(new Blockly.FieldColour("#10b981"), "WARNA")
+            .appendField("Posisi X:")
             .appendField(new Blockly.FieldNumber(0), "X")
             .appendField("Y:")
-            .appendField(new Blockly.FieldNumber(5), "Y")
+            .appendField(new Blockly.FieldNumber(6), "Y")
             .appendField("Z:")
             .appendField(new Blockly.FieldNumber(0), "Z");
         this.setPreviousStatement(true, null);
@@ -143,83 +241,12 @@
       const x = block.getFieldValue('X');
       const y = block.getFieldValue('Y');
       const z = block.getFieldValue('Z');
-      return `tambahBola(${x}, ${y}, ${z}, ${color});\n`;
+      return `window.tambahBola(${x}, ${y}, ${z}, '${color}');\n`;
     };
 
-    // ==========================================
-    // 3. FUNGSI MEMBUAT OBYEK 3D & FISIKA
-    // ==========================================
-    function tambahKubus(x, y, z, colorHex) {
-      // Mesh Visual Three.js
-      const geometry = new THREE.BoxGeometry(1, 1, 1);
-      const material = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.3 });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(x, y, z);
-      scene.add(mesh); // UTAMA: Pastikan ditambahkan ke scene
-
-      // Body Fisika Cannon.js
-      const shape = new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5));
-      const body = new CANNON.Body({ mass: 1, shape: shape });
-      body.position.set(x, y, z);
-      world.addBody(body);
-
-      // Simpan untuk di-update saat loop animasi
-      objectsToUpdate.push({ mesh, body });
-    }
-
-    function tambahBola(x, y, z, colorHex) {
-      const geometry = new THREE.SphereGeometry(0.6, 32, 32);
-      const material = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.2 });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(x, y, z);
-      scene.add(mesh);
-
-      const shape = new CANNON.Sphere(0.6);
-      const body = new CANNON.Body({ mass: 1, shape: shape });
-      body.position.set(x, y, z);
-      world.addBody(body);
-
-      objectsToUpdate.push({ mesh, body });
-    }
-
-    function resetSimulation() {
-      // Hapus obyek lama dari scene & world
-      for (let obj of objectsToUpdate) {
-        scene.remove(obj.mesh);
-        world.remove(obj.body);
-      }
-      objectsToUpdate.length = 0;
-    }
-
-    // ==========================================
-    // 4. ANIMATION LOOP & EXECUTION
-    // ==========================================
-    const clock = new THREE.Clock();
-    let oldElapsedTime = 0;
-
-    function animate() {
-      requestAnimationFrame(animate);
-
-      const elapsedTime = clock.getElapsedTime();
-      const deltaTime = elapsedTime - oldElapsedTime;
-      oldElapsedTime = elapsedTime;
-
-      // Update simulasi fisika
-      world.step(1 / 60, deltaTime, 3);
-
-      // SINKRONISASI Posisi Visual Three.js dengan Fisika Cannon.js
-      for (let obj of objectsToUpdate) {
-        obj.mesh.position.copy(obj.body.position);
-        obj.mesh.quaternion.copy(obj.body.quaternion);
-      }
-
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    // ==========================================
-    // 5. INISIALISASI BLOCKLY WORKSPACE
-    // ==========================================
+    // ===================================================
+    // 3. INISIALISASI WORKSPACE BLOCKLY
+    // ===================================================
     const workspace = Blockly.inject('blocklyDiv', {
       toolbox: document.getElementById('toolbox'),
       scrollbars: true,
@@ -227,20 +254,20 @@
     });
 
     function runCode() {
-      resetSimulation();
-      window.LoopTrap = 1000;
-      Blockly.JavaScript.INFINITE_LOOP_TRAP = 'if (--window.LoopTrap == 0) throw "Infinite loop!";\n';
+      clearScene();
+      // Mengabaikan batas loop tak terhingga jika membuat pola iterasi
+      javascript.javascriptGenerator.INFINITE_LOOP_TRAP = null;
       
       const code = javascript.javascriptGenerator.workspaceToCode(workspace);
       try {
         eval(code);
       } catch (e) {
-        console.error(e);
-        alert("Terjadi kesalahan saat menjalankan kode: " + e);
+        console.error("Execution Error:", e);
+        alert("Terjadi kesalahan pada skrip: " + e.message);
       }
     }
 
-    // Adjust canvas size on window resize
+    // Resize Responsif
     window.addEventListener('resize', () => {
       camera.aspect = canvas.clientWidth / canvas.clientHeight;
       camera.updateProjectionMatrix();
