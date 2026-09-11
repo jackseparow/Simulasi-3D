@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GeoBlock BBGTK DIY - General Physics & Mechanics Simulation</title>
+  <title>GeoBlock BBGTK DIY - 3D Visual Block Coding & Physics Lab</title>
   
   <!-- Blockly CDN Core & Generators -->
   <script src="https://unpkg.com/blockly/blockly_compressed.js"></script>
@@ -11,9 +11,11 @@
   <script src="https://unpkg.com/blockly/javascript_compressed.js"></script>
   <script src="https://unpkg.com/blockly/msg/id.js"></script>
 
-  <!-- Three.js & Cannon.es Physics Engine CDN -->
+  <!-- Three.js CDN & Extensions -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <!-- Physics Engine (Cannon-es) CDN -->
   <script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"></script>
 
   <style>
@@ -23,9 +25,9 @@
     .header-left { display: flex; align-items: center; gap: 12px; }
     .header-logo { height: 32px; width: auto; object-fit: contain; }
     #app-header h1 { font-size: 1.2rem; font-weight: 600; letter-spacing: 0.5px; }
-    
-    .control-group { display: flex; gap: 8px; align-items: center; }
-    .btn { border: none; padding: 8px 16px; font-size: 0.9rem; font-weight: bold; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; color: white; }
+
+    .sim-controls { display: flex; gap: 8px; align-items: center; }
+    .btn { border: none; padding: 7px 15px; font-size: 0.88rem; font-weight: bold; border-radius: 4px; cursor: pointer; transition: all 0.2s; color: white; }
     #btn-render { background-color: #28a745; }
     #btn-render:hover { background-color: #218838; }
     #btn-play { background-color: #007bff; }
@@ -37,7 +39,7 @@
     #blockly-div { width: 55%; height: 100%; }
     #viewport-container { width: 45%; height: 100%; position: relative; background-color: #141419; }
     #canvas3d { width: 100%; height: 100%; display: block; }
-    #code-preview { position: absolute; bottom: 10px; left: 10px; right: 10px; height: 100px; background: rgba(0, 0, 0, 0.75); color: #00ff66; font-family: 'Courier New', Courier, monospace; font-size: 12px; padding: 10px; border-radius: 6px; overflow-y: auto; pointer-events: none; border: 1px solid rgba(255,255,255,0.1); }
+    #code-preview { position: absolute; bottom: 10px; left: 10px; right: 10px; height: 110px; background: rgba(0, 0, 0, 0.75); color: #00ff66; font-family: 'Courier New', Courier, monospace; font-size: 12px; padding: 10px; border-radius: 6px; overflow-y: auto; pointer-events: none; border: 1px solid rgba(255,255,255,0.1); }
   </style>
 </head>
 <body>
@@ -45,10 +47,10 @@
   <header id="app-header">
     <div class="header-left">
       <img src="bbgtk diy logo.png" alt="Logo BBGTK DIY" class="header-logo">
-      <h1>GeoBlock BBGTK DIY - 3D Physics & Mechanics Laboratory</h1>
+      <h1>GeoBlock BBGTK DIY</h1>
     </div>
-    <div class="control-group">
-      <button id="btn-render" class="btn" onclick="renderScene()">Build Model</button>
+    <div class="sim-controls">
+      <button id="btn-render" class="btn" onclick="renderScene()">Render 3D Kode</button>
       <button id="btn-play" class="btn" onclick="toggleSimulation()">Play Simulasi</button>
       <button id="btn-reset" class="btn" onclick="resetSimulation()">Reset</button>
     </div>
@@ -62,37 +64,68 @@
     </div>
   </main>
 
-  <!-- Modul Custom Blocks 3D & 2D JS -->
+  <!-- Modul Custom Blocks 3D JS -->
   <script src="block_cube.js"></script>
   <script src="block_sphere.js"></script>
   <script src="block_cylinder.js"></script>
   <script src="block_torus.js"></script>
+
+  <!-- Modul Custom Blocks 2D JS -->
   <script src="block_circle.js"></script>
   <script src="block_square.js"></script>
 
-  <!-- Modul Custom Blocks Transformasi & Himpunan -->
+  <!-- Modul Custom Blocks Transformasi JS -->
   <script src="block_color.js"></script>
   <script src="block_translate.js"></script>
   <script src="block_rotate.js"></script>
   <script src="block_scale.js"></script>
   <script src="block_mirror.js"></script>
+
+  <!-- Modul Custom Blocks Operasi Himpunan JS -->
   <script src="block_union.js"></script>
   <script src="block_intersection.js"></script>
   <script src="block_difference.js"></script>
+  <script src="block_hull.js"></script>
+
+  <!-- Modul Custom Blocks Teks JS -->
   <script src="block_text.js"></script>
 
-  <!-- Modul Fisika General Baru -->
+  <!-- Modul Custom Blocks Simulasi Fisika JS -->
   <script src="block_physics_general.js"></script>
 
   <script>
     const jsGen = javascript.javascriptGenerator || javascriptGenerator;
 
+    if (Blockly.Msg) {
+      Blockly.Msg["MATH_MODULO_TITLE"] = "modulo %1 ÷ %2";
+      Blockly.Msg["LOGIC_BOOLEAN_TRUE"] = "benar";
+      Blockly.Msg["LOGIC_BOOLEAN_FALSE"] = "salah";
+      Blockly.Msg["TEXT_JOIN_TITLE_CREATEWITH"] = "gabung teks";
+    }
+
+    Blockly.Blocks['math_custom_angle'] = {
+      init: function() {
+        this.appendDummyInput()
+            .appendField("derajat")
+            .appendField(new Blockly.FieldNumber(90, -360, 360), "DEGREE")
+            .appendField("°");
+        this.setOutput(true, "Number");
+        this.setColour("#5B80A5");
+        this.setTooltip("Blok input sudut (-360° sampai 360°)");
+      }
+    };
+
+    jsGen.forBlock['math_custom_angle'] = function(block) {
+      var degree = block.getFieldValue('DEGREE') || 0;
+      return [degree, jsGen.ORDER_ATOMIC];
+    };
+
     const toolboxXml = `
       <xml id="toolbox" style="display: none">
-        <!-- Kategori Fisika General -->
+        <!-- 1. Kategori Simulasi Fisika -->
         <category name="Simulasi Fisika" colour="#FF5722">
           <block type="physics_world">
-            <value name="GRAVITY"><shadow type="math_number"><field name="NUM">-9.81</field></shadow></value>
+            <value name="GRAVITY_Z"><shadow type="math_number"><field name="NUM">-9.81</field></shadow></value>
           </block>
           <block type="physics_body">
             <value name="MASS"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
@@ -103,44 +136,124 @@
           </block>
         </category>
 
-        <!-- Kategori Bentuk 3D -->
+        <!-- 2. Bentuk 3D -->
         <category name="Bentuk 3D" colour="#4C97FF">
-          <block type="shape_cube"></block>
-          <block type="shape_sphere"></block>
-          <block type="shape_cylinder"></block>
-          <block type="shape_torus"></block>
+          <block type="shape_cube">
+            <value name="SIZE_X"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="SIZE_Y"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="SIZE_Z"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="POS_X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+
+          <block type="shape_sphere">
+            <value name="RADIUS"><shadow type="math_number"><field name="NUM">5</field></shadow></value>
+            <value name="POS_X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+
+          <block type="shape_cylinder">
+            <value name="RADIUS_TOP"><shadow type="math_number"><field name="NUM">5</field></shadow></value>
+            <value name="RADIUS_BOTTOM"><shadow type="math_number"><field name="NUM">5</field></shadow></value>
+            <value name="HEIGHT"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="POS_X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+
+          <block type="shape_torus">
+            <value name="RADIUS"><shadow type="math_number"><field name="NUM">8</field></shadow></value>
+            <value name="TUBE"><shadow type="math_number"><field name="NUM">3</field></shadow></value>
+            <value name="POS_X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
         </category>
 
-        <!-- Kategori Bentuk 2D -->
+        <!-- 3. Bentuk 2D -->
         <category name="Bentuk 2D" colour="#9C27B0">
-          <block type="shape_circle"></block>
-          <block type="shape_square"></block>
+          <block type="shape_circle">
+            <value name="RADIUS"><shadow type="math_number"><field name="NUM">5</field></shadow></value>
+            <value name="POS_X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+
+          <block type="shape_square">
+            <value name="SIZE_X"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="SIZE_Y"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="POS_X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="POS_Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
         </category>
 
-        <!-- Kategori Transformasi -->
+        <!-- 4. Transformasi -->
         <category name="Transformasi" colour="#FF9800">
-          <block type="transform_color_palette"></block>
-          <block type="transform_translate"></block>
-          <block type="transform_rotate"></block>
-          <block type="transform_scale"></block>
+          <block type="transform_color_palette">
+            <value name="OPACITY"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+
+          <block type="transform_translate">
+            <value name="X"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="Z"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+          </block>
+
+          <block type="transform_rotate">
+            <value name="X"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="Y"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+            <value name="Z"><shadow type="math_number"><field name="NUM">45</field></shadow></value>
+          </block>
+
+          <block type="transform_scale">
+            <value name="X"><shadow type="math_number"><field name="NUM">2</field></shadow></value>
+            <value name="Y"><shadow type="math_number"><field name="NUM">2</field></shadow></value>
+            <value name="Z"><shadow type="math_number"><field name="NUM">2</field></shadow></value>
+          </block>
+
+          <block type="transform_mirror_plane"></block>
         </category>
 
-        <!-- Kategori Operasi Himpunan -->
+        <!-- 5. Operasi Himpunan -->
         <category name="Operasi Himpunan" colour="#E91E63">
           <block type="csg_union"></block>
           <block type="csg_intersection"></block>
           <block type="csg_difference"></block>
+          <block type="csg_hull"></block>
         </category>
 
-        <!-- Kategori Matematika & Iterasi -->
+        <!-- 6. Matematika -->
         <category name="Matematika" colour="#5B80A5">
           <block type="math_number"><field name="NUM">10</field></block>
-          <block type="math_arithmetic"></block>
+          <block type="math_custom_angle"></block>
+          <block type="math_arithmetic">
+            <value name="A"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+            <value name="B"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+          </block>
+          <block type="math_trig"></block>
         </category>
+
+        <!-- 7. Logika & Iterasi -->
+        <category name="Logika" colour="#5C81A6">
+          <block type="controls_if"></block>
+          <block type="logic_compare"></block>
+        </category>
+
         <category name="Iterasi" colour="#5CA65C">
           <block type="controls_repeat_ext">
             <value name="TIMES"><block type="math_number"><field name="NUM">10</field></block></value>
           </block>
+          <block type="controls_for"></block>
+        </category>
+
+        <!-- 8. Variabel & Teks -->
+        <category name="Variabel" colour="#A55B80" custom="VARIABLE"></category>
+        <category name="Teks" colour="#5BA58C">
+          <block type="text"></block>
+          <block type="text_join"></block>
         </category>
       </xml>
     `;
@@ -148,12 +261,12 @@
     const workspace = Blockly.inject('blockly-div', {
       toolbox: toolboxXml,
       scrollbars: true,
-      zoom: { controls: true, wheel: true, startScale: 1.0 },
+      zoom: { controls: true, wheel: true, startScale: 1.0, maxScale: 3, minScale: 0.3, scaleSpeed: 1.2 },
       grid: { spacing: 20, length: 3, colour: '#ccc', snap: true }
     });
 
-    const container = document.getElementById('viewport-container');
     const canvas = document.getElementById('canvas3d');
+    const container = document.getElementById('viewport-container');
     
     // Scene Three.js
     const scene = new THREE.Scene();
@@ -165,8 +278,10 @@
 
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0, 0);
     controls.enableDamping = true;
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -180,31 +295,33 @@
     gridHelper.rotation.x = Math.PI / 2;
     scene.add(gridHelper);
 
+    const axesHelper = new THREE.AxesHelper(30);
+    scene.add(axesHelper);
+
     const renderGroup = new THREE.Group();
     scene.add(renderGroup);
 
-    // Initial Physics World Setup (Cannon.es)
+    // Inisialisasi Environment Fisika Cannon.es
     window.physicsWorld = new CANNON.World();
     window.physicsWorld.gravity.set(0, 0, -9.81);
     window.simulatedObjects = [];
 
     let isSimulating = false;
 
-    // Lantai Fisika Permanen (Ground Plane)
+    // Lantai Pembatas (Ground Plane)
     const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
     window.physicsWorld.addBody(groundBody);
 
     function renderScene() {
       resetSimulation();
 
-      // Clear Three.js Render Group
       while(renderGroup.children.length > 0){ 
         const obj = renderGroup.children[0];
         if (obj.geometry) obj.geometry.dispose();
         renderGroup.remove(obj); 
       }
 
-      // Re-init Physics World Bodies
+      // Reset Ulang World Fisika
       window.physicsWorld = new CANNON.World();
       window.physicsWorld.gravity.set(0, 0, -9.81);
       window.physicsWorld.addBody(groundBody);
@@ -217,32 +334,34 @@
         const runCode = new Function('sceneGroup', 'THREE', 'CANNON', code);
         runCode(renderGroup, THREE, CANNON);
       } catch (e) {
-        console.error("Error Execution:", e);
+        console.error("Error eksekusi rendering 3D & fisika:", e);
       }
     }
 
     function toggleSimulation() {
       isSimulating = !isSimulating;
-      document.getElementById('btn-play').innerText = isSimulating ? "Pause" : "Play Simulasi";
-      document.getElementById('btn-play').style.backgroundColor = isSimulating ? "#ffc107" : "#007bff";
+      const btn = document.getElementById('btn-play');
+      btn.innerText = isSimulating ? "Pause" : "Play Simulasi";
+      btn.style.backgroundColor = isSimulating ? "#ffc107" : "#007bff";
     }
 
     function resetSimulation() {
       isSimulating = false;
-      document.getElementById('btn-play').innerText = "Play Simulasi";
-      document.getElementById('btn-play').style.backgroundColor = "#007bff";
+      const btn = document.getElementById('btn-play');
+      btn.innerText = "Play Simulasi";
+      btn.style.backgroundColor = "#007bff";
       renderScene();
     }
 
-    // Animation Loop
-    const timeStep = 1 / 60;
+    // Animation & Engine Step Loop
+    const physicsTimeStep = 1 / 60;
     function animate() {
       requestAnimationFrame(animate);
 
       if (isSimulating) {
-        window.physicsWorld.step(timeStep);
+        window.physicsWorld.step(physicsTimeStep);
 
-        // Update Posisi & Rotasi Visual Mesh dari Physics Body
+        // Sinkronisasi posisi visual 3D dengan kalkulasi matematika Cannon Body
         window.simulatedObjects.forEach(obj => {
           if (obj.userData && obj.userData.physicsBody) {
             obj.position.copy(obj.userData.physicsBody.position);
@@ -254,13 +373,14 @@
       controls.update();
       renderer.render(scene, camera);
     }
-    
     animate();
 
     window.addEventListener('resize', () => {
-      camera.aspect = container.clientWidth / container.clientHeight;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      camera.aspect = width / height;
       camera.updateProjectionMatrix();
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setSize(width, height);
     });
   </script>
 </body>
